@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IG Planner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root{
+    --ink:#16213E;
+    --ink-soft:#3B4A70;
+    --paper:#F3EEE1;
+    --stub:#FFFFFF;
+    --gold:#C9932B;
+    --teal:#2C7A7B;
+    --coral:#D8543A;
+    --line:#D9D0BA;
+    --shadow: 0 10px 30px -12px rgba(22,33,62,0.25);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: radial-gradient(circle at 20% 0%, #FAF6EA 0%, var(--paper) 55%);
+    font-family:'Inter', sans-serif;
+    color:var(--ink);
+    padding: 26px 16px 60px;
+    min-height:100vh;
+  }
+  .page-wrap{ max-width: 720px; margin: 0 auto; }
+  button{ font-family:'Inter', sans-serif; cursor:pointer; border:none; }
+
+  /* ---------- tab bar ---------- */
+  .tabbar{
+    display:flex;
+    gap:6px;
+    background:#EDE6D2;
+    padding:4px;
+    border-radius:100px;
+    margin-bottom:24px;
+    max-width:420px;
+  }
+  .tab-btn{
+    flex:1;
+    background:transparent;
+    color:var(--ink-soft);
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    padding:9px 14px;
+    border-radius:100px;
+    transition: all .15s ease;
+  }
+  .tab-btn.active{
+    background:var(--ink);
+    color:var(--paper);
+  }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  /* ---------- shared bits ---------- */
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    color:var(--teal);
+    text-transform:uppercase;
+    margin:0 0 4px;
+  }
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size: 28px;
+    margin:0;
+    line-height:1.05;
+    letter-spacing:-0.01em;
+  }
+  .sub{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin:6px 0 0;
+    line-height:1.5;
+  }
+  .btn-ghost{
+    background:transparent;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    font-size:12px;
+    font-weight:600;
+    padding:9px 14px;
+    border-radius:100px;
+    transition: all .15s ease;
+  }
+  .btn-ghost:hover{ background:var(--ink); color:var(--paper); }
+
+  /* ================= CALENDAR TAB ================= */
+  header.top{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom: 22px;
+    flex-wrap:wrap;
+  }
+  .route-line{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:6px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .route-line svg{ flex-shrink:0; }
+
+  .progress-strip{
+    display:flex;
+    gap:5px;
+    margin-bottom:26px;
+  }
+  .progress-seg{
+    flex:1;
+    height:5px;
+    border-radius:3px;
+    background:var(--line);
+    overflow:hidden;
+    position:relative;
+  }
+  .progress-seg i{
+    display:block;
+    height:100%;
+    background:var(--teal);
+    width:var(--fill,0%);
+    transition:width .3s ease;
+  }
+
+  .ticket{
+    position:relative;
+    display:grid;
+    grid-template-columns: 1fr 108px;
+    background:var(--stub);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    margin-bottom:22px;
+    overflow:hidden;
+    border:1px solid #EDE6D2;
+  }
+  .ticket.is-today{
+    border-color: var(--teal);
+    box-shadow: 0 0 0 2px var(--teal), var(--shadow);
+  }
+  .today-flag{
+    position:absolute;
+    top:14px;
+    right:14px;
+    background:var(--teal);
+    color:#fff;
+    font-family:'JetBrains Mono', monospace;
+    font-size:9.5px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    padding:3px 9px;
+    border-radius:100px;
+    z-index:2;
+  }
+  .ticket-main{
+    padding:18px 20px 18px 22px;
+    border-right: 2px dashed var(--line);
+    position:relative;
+  }
+  .ticket-main::before, .ticket-main::after{
+    content:"";
+    position:absolute;
+    width:22px; height:22px;
+    background:var(--paper);
+    border-radius:50%;
+    right:-13px;
+  }
+  .ticket-main::before{ top:-13px; }
+  .ticket-main::after{ bottom:-13px; }
+
+  .day-row{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:2px;
+  }
+  .day-name{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:19px;
+    letter-spacing:-0.01em;
+  }
+  .day-code{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--gold);
+    font-weight:700;
+    letter-spacing:.06em;
+  }
+  .type-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    padding:4px 9px;
+    border-radius:100px;
+    margin: 6px 0 12px;
+  }
+  .type-badge.feed{ background:#EAF3F0; color:var(--teal); }
+  .type-badge.stories{ background:#F5EAD9; color:var(--gold); }
+
+  .time-note{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-bottom:12px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  ul.tasks{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+  }
+  li.task{
+    display:flex;
+    align-items:flex-start;
+    gap:9px;
+    font-size:13.5px;
+    line-height:1.35;
+    padding:5px 6px;
+    border-radius:8px;
+    transition: background .15s ease;
+  }
+  li.task:hover{ background:#FAF8F2; }
+  li.task .chk{
+    flex-shrink:0;
+    width:18px; height:18px;
+    border-radius:5px;
+    border:2px solid var(--ink-soft);
+    margin-top:1.5px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    background:#fff;
+    transition: all .15s ease;
+  }
+  li.task .chk.done{
+    background:var(--teal);
+    border-color:var(--teal);
+  }
+  li.task .chk svg{ display:none; width:11px; height:11px; }
+  li.task .chk.done svg{ display:block; }
+  li.task .txt{ flex:1; cursor:pointer; }
+  li.task.done .txt{ text-decoration:line-through; color:#9A9384; }
+  li.task .tag{
+    font-family:'JetBrains Mono', monospace;
+    font-size:9.5px;
+    color:#B0A78E;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    margin-right:6px;
+  }
+  .task-controls{
+    display:flex;
+    gap:4px;
+    opacity:0;
+    transition:opacity .15s ease;
+  }
+  li.task:hover .task-controls{ opacity:1; }
+  .icon-btn{
+    background:none;
+    padding:2px;
+    color:#B0A78E;
+    display:flex;
+  }
+  .icon-btn:hover{ color:var(--ink); }
+  .icon-btn.danger:hover{ color:var(--coral); }
+  .edit-input{
+    flex:1;
+    font-family:'Inter', sans-serif;
+    font-size:13.5px;
+    padding:4px 7px;
+    border:1px solid var(--teal);
+    border-radius:6px;
+    outline:none;
+  }
+  .add-task-row{
+    margin-top:10px;
+    display:flex;
+    gap:6px;
+    align-items:center;
+  }
+  .add-task-row input{
+    flex:1;
+    font-family:'Inter', sans-serif;
+    font-size:12.5px;
+    padding:7px 10px;
+    border:1px dashed var(--line);
+    border-radius:8px;
+    outline:none;
+    background:transparent;
+  }
+  .add-task-row input:focus{ border-color:var(--teal); border-style:solid; }
+  .add-task-row button{
+    background:var(--ink);
+    color:var(--paper);
+    font-size:16px;
+    width:28px; height:28px;
+    border-radius:50%;
+    line-height:1;
+    flex-shrink:0;
+  }
+  .add-task-row button:hover{ background:var(--teal); }
+
+  .ticket-stub{
+    background: repeating-linear-gradient(135deg, #FBF9F3, #FBF9F3 8px, #F6F1E4 8px, #F6F1E4 16px);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:14px 8px;
+    text-align:center;
+    gap:6px;
+  }
+  .stub-count{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    color:var(--ink);
+  }
+  .stub-count span{ font-size:12px; color:var(--ink-soft); font-weight:500; }
+  .stub-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size:9px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .stub-status{
+    margin-top:4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:9.5px;
+    font-weight:700;
+    letter-spacing:.06em;
+    padding:3px 8px;
+    border-radius:100px;
+  }
+  .stub-status.pending{ background:#F5EAD9; color:var(--gold); }
+  .stub-status.complete{ background:#EAF3F0; color:var(--teal); }
+  .stub-status.empty{ background:#EFEAE0; color:#A79E8A; }
+
+  .minimum-note{
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    background: var(--ink);
+    color:var(--paper);
+    border-radius:16px;
+    padding:16px 18px;
+    margin-top:8px;
+    box-shadow:var(--shadow);
+  }
+  .minimum-note svg{ flex-shrink:0; margin-top:2px; }
+  .minimum-note .mn-title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:13.5px;
+    margin-bottom:3px;
+  }
+  .minimum-note p{ margin:0; font-size:12.5px; line-height:1.5; color:#D6DAE8; }
+
+  @media (max-width: 480px){
+    .ticket{ grid-template-columns: 1fr 82px; }
+    .ticket-main{ padding:16px 14px 16px 16px; }
+    h1{ font-size:22px; }
+  }
+
+  /* ================= GRID TAB ================= */
+  .grid-wrap{ max-width:460px; }
+  .toolbar{
+    display:flex;
+    gap:8px;
+    margin:18px 0;
+    flex-wrap:wrap;
+  }
+  .btn-primary{
+    background:var(--ink);
+    color:var(--paper);
+    font-size:13px;
+    font-weight:600;
+    padding:11px 16px;
+    border-radius:100px;
+    flex:1;
+    text-align:center;
+  }
+  .btn-primary:hover{ background:var(--teal); }
+  input[type="file"]{ display:none; }
+
+  .hint{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    background:#FBF8EF;
+    border:1px dashed var(--line);
+    border-radius:10px;
+    padding:9px 12px;
+    margin-bottom:18px;
+    line-height:1.5;
+    display:none;
+  }
+  .hint.show{ display:block; }
+
+  .grid-card{
+    background:#fff;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+    border:1px solid #EDE6D2;
+    max-width:460px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:2px;
+    background:#EFEAE0;
+  }
+  .tile{
+    position:relative;
+    aspect-ratio: 1/1;
+    background:#F6F3EA;
+    overflow:hidden;
+    cursor:pointer;
+  }
+  .tile img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .tile.selected{ outline: 3px solid var(--teal); outline-offset:-3px; }
+  .tile .del{
+    position:absolute;
+    top:4px; right:4px;
+    width:20px; height:20px;
+    border-radius:50%;
+    background:rgba(22,33,62,0.65);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px;
+    z-index:2;
+  }
+  .tile .num{
+    position:absolute;
+    bottom:4px; left:4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:9px;
+    color:#fff;
+    background:rgba(22,33,62,0.55);
+    padding:1px 5px;
+    border-radius:100px;
+  }
+  .tile.anchor::before{
+    content:"CURRENT";
+    position:absolute;
+    top:4px; left:4px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:8px;
+    letter-spacing:.05em;
+    color:#fff;
+    background:var(--gold);
+    padding:2px 5px;
+    border-radius:4px;
+    z-index:2;
+  }
+  .empty-state{
+    padding:50px 20px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    line-height:1.6;
+  }
+  .empty-state .big{ font-size:34px; margin-bottom:8px; }
+  .footer-note{
+    margin-top:16px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    text-align:center;
+    line-height:1.5;
+    max-width:460px;
+  }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="cal">Calendar</button>
+    <button class="tab-btn" data-tab="grid">Grid Preview</button>
+  </div>
+
+  <!-- ================= CALENDAR PANEL ================= -->
+  <section class="tab-panel active" id="tab-cal">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Boarding · Instagram Ops</p>
+        <h1>Weekly Posting Itinerary</h1>
+        <div class="route-line">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+          MON&nbsp;→&nbsp;SUN · 4 feed posts · daily stories
+        </div>
+      </div>
+      <div class="actions-top">
+        <button class="btn-ghost" id="resetWeekBtn">Reset week</button>
+      </div>
+    </header>
+
+    <div class="progress-strip" id="progressStrip"></div>
+    <div id="ticketContainer"></div>
+
+    <div class="minimum-note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <div>
+        <div class="mn-title">Daily minimum, every single day</div>
+        <p>At least 1 Story, plus check and reply to comments and DMs across all recent posts. The first 30–60 minutes after posting most heavily influences reach beyond your existing audience — but ongoing replies keep the relationship signal warm between posts.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= GRID PANEL ================= -->
+  <section class="tab-panel grid-wrap" id="tab-grid">
+    <p class="eyebrow">Feed Grid</p>
+    <h1>Your grid</h1>
+    <p class="sub">Add, remove, and reorder your posts. Tap two tiles to swap their places.</p>
+
+    <div class="toolbar">
+      <button class="btn-primary" id="addBtn">+ Add photos</button>
+      <button class="btn-ghost" id="anchorBtn">Add current grid shot</button>
+      <button class="btn-ghost" id="clearBtn">Clear</button>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+
+    <div class="hint" id="swapHint">Tile selected — tap another tile to swap places, or tap it again to deselect.</div>
+
+    <div class="grid-card">
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <p class="footer-note">Your photos are saved automatically — close this and come back, your grid will still be here.</p>
+  </section>
+
+</div>
+
+<script>
+/* ============ SHARED ============ */
+let storageAvailable = true;
+let warningShown = false;
+
+function showStorageWarning(msg){
+  if(warningShown) return;
+  warningShown = true;
+  const banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#16213E;color:#F3EEE1;font-family:Inter,sans-serif;font-size:12.5px;padding:10px 16px;border-radius:100px;box-shadow:0 8px 20px rgba(0,0,0,.25);z-index:999;max-width:90%;text-align:center;';
+  banner.textContent = msg;
+  document.body.appendChild(banner);
+  setTimeout(()=>banner.remove(), 5000);
+}
+
+/* ---- tab switching ---- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  };
+});
+
+/* ============ CALENDAR LOGIC ============ */
+const STORAGE_KEY = 'ig-weekly-itinerary-v5';
+
+const defaultData = [
+  { id:'mon', name:'Monday', code:'MON-01', type:'feed', badge:'Feed post · Carousel', time:'7–9am · "Start of week inspo" travel content',
+    tasks:[
+      {id:'mon-2', text:'Engage 10–15 niche accounts for 5–10 min before posting', tag:'APP', done:false},
+      {id:'mon-1', text:'Post the carousel (7–9am)', tag:'POST', done:false},
+      {id:'mon-3', text:'Reply to every comment within the first hour', tag:'APP', done:false},
+    ]},
+  { id:'tue', name:'Tuesday', code:'TUE-02', type:'stories', badge:'Stories only', time:'2–3 slides · behind-the-scenes + poll/question sticker',
+    tasks:[
+      {id:'tue-1', text:'Post 2–3 Story slides (BTS + poll/question sticker)', tag:'POST', done:false},
+      {id:'tue-2', text:"Reply to any DMs from Monday's post", tag:'APP', done:false},
+      {id:'tue-3', text:'Like/comment on a few accounts', tag:'APP', done:false},
+    ]},
+  { id:'wed', name:'Wednesday', code:'WED-03', type:'feed', badge:'Feed post · Carousel/Image', time:'7–9pm',
+    tasks:[
+      {id:'wed-1', text:'Post the carousel or image (7–9pm)', tag:'POST', done:false},
+      {id:'wed-2', text:'Same first-hour reply push', tag:'APP', done:false},
+      {id:'wed-3', text:'Repost the carousel cover to Story afterward (2nd visibility pass)', tag:'APP', done:false},
+    ]},
+  { id:'thu', name:'Thursday', code:'THU-04', type:'stories', badge:'Stories only', time:'Poll or "this or that" sticker to boost interaction signals',
+    tasks:[
+      {id:'thu-1', text:'Post a poll or "this or that" Story sticker', tag:'POST', done:false},
+    ]},
+  { id:'fri', name:'Friday', code:'FRI-05', type:'feed', badge:'Feed post', time:'7–9am · weekend-planning mindset = good for travel content',
+    tasks:[
+      {id:'fri-2', text:'Comment on 5–10 accounts before posting', tag:'APP', done:false},
+      {id:'fri-1', text:'Post the feed post (7–9am)', tag:'POST', done:false},
+      {id:'fri-3', text:'First-hour replies', tag:'APP', done:false},
+    ]},
+  { id:'sat', name:'Saturday', code:'SAT-06', type:'feed', badge:'4th feed post (if higher activity)', time:'9–11am · post here if Insights show Saturday outperforms Sunday',
+    tasks:[
+      {id:'sat-2', text:'Engage 10–15 niche accounts before posting', tag:'APP', done:false},
+      {id:'sat-1', text:'Post the 4th feed post (9–11am)', tag:'POST', done:false},
+      {id:'sat-3', text:'Reply to every comment within the first hour', tag:'APP', done:false},
+      {id:'sat-4', text:'Repost the post to Story afterward', tag:'APP', done:false},
+    ]},
+  { id:'sun', name:'Sunday', code:'SUN-07', type:'feed', badge:'4th feed post (if higher activity)', time:'8–10am · post here if Insights show Sunday outperforms Saturday',
+    tasks:[
+      {id:'sun-2', text:'Engage 10–15 niche accounts before posting', tag:'APP', done:false},
+      {id:'sun-1', text:'Post the 4th feed post (8–10am)', tag:'POST', done:false},
+      {id:'sun-3', text:'Reply to every comment within the first hour', tag:'APP', done:false},
+      {id:'sun-4', text:'Repost the post to Story afterward', tag:'APP', done:false},
+    ]},
+];
+
+let calState = null;
+
+const DOW_TO_ID = ['sun','mon','tue','wed','thu','fri','sat'];
+function getTodayId(){ return DOW_TO_ID[new Date().getDay()]; }
+
+async function loadCalState(){
+  if(!window.storage || typeof window.storage.get !== 'function'){
+    storageAvailable = false;
+    calState = JSON.parse(JSON.stringify(defaultData));
+    return;
+  }
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if(res && res.value){ calState = JSON.parse(res.value); return; }
+  }catch(e){ /* no saved state yet */ }
+  calState = JSON.parse(JSON.stringify(defaultData));
+  await saveCalState();
+}
+
+async function saveCalState(){
+  if(!storageAvailable) return;
+  try{
+    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(calState), false);
+    if(!result){ storageAvailable = false; showStorageWarning("Changes won't be saved between visits in this preview — everything still works this session."); }
+  }catch(e){ storageAvailable = false; showStorageWarning("Changes won't be saved between visits in this preview — everything still works this session."); }
+}
+
+function uid(){ return 'x' + Math.random().toString(36).slice(2,9); }
+function checkIcon(){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>';
+}
+
+function renderCal(){
+  const container = document.getElementById('ticketContainer');
+  container.innerHTML = '';
+  const strip = document.getElementById('progressStrip');
+  strip.innerHTML = '';
+  const todayId = getTodayId();
+
+  calState.forEach(day => {
+    const total = day.tasks.length;
+    const doneCount = day.tasks.filter(t=>t.done).length;
+    const pct = total ? Math.round((doneCount/total)*100) : 0;
+
+    const seg = document.createElement('div');
+    seg.className = 'progress-seg';
+    seg.title = day.name + ': ' + doneCount + '/' + total;
+    seg.innerHTML = `<i style="--fill:${pct}%"></i>`;
+    strip.appendChild(seg);
+
+    const isToday = day.id === todayId;
+    const ticket = document.createElement('div');
+    ticket.className = 'ticket' + (isToday ? ' is-today' : '');
+    ticket.id = 'ticket-' + day.id;
+
+    let statusClass = 'pending', statusText = 'Pending';
+    if(total === 0){ statusClass='empty'; statusText='—'; }
+    else if(doneCount === total){ statusClass='complete'; statusText='Done'; }
+
+    ticket.innerHTML = `
+      ${isToday ? '<span class="today-flag">Today</span>' : ''}
+      <div class="ticket-main">
+        <div class="day-row">
+          <span class="day-name">${day.name}</span>
+          <span class="day-code">${day.code}</span>
+        </div>
+        <span class="type-badge ${day.type}">${day.type === 'feed' ? '📸 ' : '⭘ '}${day.badge}</span>
+        <div class="time-note">${day.time}</div>
+        <ul class="tasks" data-day="${day.id}"></ul>
+        <div class="add-task-row">
+          <input type="text" placeholder="Add a task for ${day.name}…" data-add-for="${day.id}">
+          <button data-add-btn="${day.id}">+</button>
+        </div>
+      </div>
+      <div class="ticket-stub">
+        <div class="stub-count">${doneCount}<span>/${total}</span></div>
+        <div class="stub-label">Tasks</div>
+        <div class="stub-status ${statusClass}">${statusText}</div>
+      </div>
+    `;
+
+    const ul = ticket.querySelector('ul.tasks');
+    day.tasks.forEach(task => {
+      const li = document.createElement('li');
+      li.className = 'task' + (task.done ? ' done' : '');
+      li.dataset.taskId = task.id;
+      li.dataset.dayId = day.id;
+      li.innerHTML = `
+        <div class="chk ${task.done ? 'done':''}">${checkIcon()}</div>
+        <span class="txt"><span class="tag">${task.tag||''}</span>${task.text}</span>
+        <div class="task-controls">
+          <button class="icon-btn edit-btn" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+          <button class="icon-btn danger del-btn" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+        </div>
+      `;
+      ul.appendChild(li);
+    });
+
+    container.appendChild(ticket);
+  });
+
+  attachCalEvents();
+}
+
+function attachCalEvents(){
+  document.querySelectorAll('.chk').forEach(el=>{
+    el.onclick = (e)=>{
+      const li = e.target.closest('li.task');
+      toggleTask(li.dataset.dayId, li.dataset.taskId);
+    };
+  });
+  document.querySelectorAll('.txt').forEach(el=>{
+    el.onclick = (e)=>{
+      const li = e.target.closest('li.task');
+      toggleTask(li.dataset.dayId, li.dataset.taskId);
+    };
+  });
+  document.querySelectorAll('.edit-btn').forEach(el=>{
+    el.onclick = (e)=>{
+      e.stopPropagation();
+      const li = e.target.closest('li.task');
+      startEdit(li);
+    };
+  });
+  document.querySelectorAll('.del-btn').forEach(el=>{
+    el.onclick = async (e)=>{
+      e.stopPropagation();
+      const li = e.target.closest('li.task');
+      await deleteTask(li.dataset.dayId, li.dataset.taskId);
+    };
+  });
+  document.querySelectorAll('[data-add-btn]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const dayId = btn.dataset.addBtn;
+      const input = document.querySelector(`[data-add-for="${dayId}"]`);
+      await addTask(dayId, input.value);
+      input.value='';
+    };
+  });
+  document.querySelectorAll('[data-add-for]').forEach(input=>{
+    input.onkeydown = async (e)=>{
+      if(e.key === 'Enter'){
+        await addTask(input.dataset.addFor, input.value);
+        input.value='';
+      }
+    };
+  });
+}
+
+function startEdit(li){
+  const dayId = li.dataset.dayId, taskId = li.dataset.taskId;
+  const day = calState.find(d=>d.id===dayId);
+  const task = day.tasks.find(t=>t.id===taskId);
+  const txtEl = li.querySelector('.txt');
+  const original = task.text;
+
+  const input = document.createElement('input');
+  input.className = 'edit-input';
+  input.value = original;
+  txtEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = async ()=>{
+    const val = input.value.trim();
+    if(val) task.text = val;
+    await saveCalState();
+    renderCal();
+  };
+  input.onkeydown = (e)=>{
+    if(e.key === 'Enter') commit();
+    if(e.key === 'Escape') renderCal();
+  };
+  input.onblur = commit;
+}
+
+async function toggleTask(dayId, taskId){
+  const day = calState.find(d=>d.id===dayId);
+  const task = day.tasks.find(t=>t.id===taskId);
+  task.done = !task.done;
+  await saveCalState();
+  renderCal();
+}
+
+async function deleteTask(dayId, taskId){
+  const day = calState.find(d=>d.id===dayId);
+  day.tasks = day.tasks.filter(t=>t.id!==taskId);
+  await saveCalState();
+  renderCal();
+}
+
+async function addTask(dayId, text){
+  const val = text.trim();
+  if(!val) return;
+  const day = calState.find(d=>d.id===dayId);
+  day.tasks.push({id: uid(), text: val, tag:'', done:false});
+  await saveCalState();
+  renderCal();
+}
+
+document.getElementById('resetWeekBtn').onclick = async ()=>{
+  calState.forEach(day => day.tasks.forEach(t => t.done = false));
+  await saveCalState();
+  renderCal();
+};
+
+/* ============ GRID LOGIC ============ */
+let tiles = []; // {id, dataUrl, isAnchor}
+let selectedId = null;
+
+const ORDER_KEY = 'grid-order-v1';
+const TILE_PREFIX = 'grid-tile-v1:';
+
+const gridEl = document.getElementById('grid');
+const fileInput = document.getElementById('fileInput');
+const swapHint = document.getElementById('swapHint');
+
+function fileToCompressedDataUrl(file, maxDim = 900, quality = 0.75){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let { width, height } = img;
+        if(width > maxDim || height > maxDim){
+          if(width > height){ height = Math.round(height * (maxDim/width)); width = maxDim; }
+          else { width = Math.round(width * (maxDim/height)); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function saveOrder(){
+  if(!storageAvailable) return;
+  try{
+    const order = tiles.map(t=>({id:t.id, isAnchor: !!t.isAnchor}));
+    const res = await window.storage.set(ORDER_KEY, JSON.stringify(order), false);
+    if(!res){ storageAvailable = false; showStorageWarning("Photos won't be saved between visits in this preview — everything still works this session."); }
+  }catch(e){ storageAvailable = false; showStorageWarning("Photos won't be saved between visits in this preview — everything still works this session."); }
+}
+
+async function saveTile(tile){
+  if(!storageAvailable) return;
+  try{
+    const res = await window.storage.set(TILE_PREFIX + tile.id, JSON.stringify({dataUrl: tile.dataUrl}), false);
+    if(!res){ storageAvailable = false; showStorageWarning("This photo was too large to save — it'll stay for this session only."); }
+  }catch(e){ storageAvailable = false; showStorageWarning("This photo was too large to save — it'll stay for this session only."); }
+}
+
+async function deleteTileStorage(id){
+  if(!storageAvailable) return;
+  try{ await window.storage.delete(TILE_PREFIX + id, false); }catch(e){ /* ignore */ }
+}
+
+async function loadFromStorage(){
+  if(!window.storage || typeof window.storage.get !== 'function'){
+    storageAvailable = false;
+    return;
+  }
+  try{
+    const orderRes = await window.storage.get(ORDER_KEY, false);
+    if(!orderRes || !orderRes.value) return;
+    const order = JSON.parse(orderRes.value);
+    const loaded = [];
+    for(const entry of order){
+      try{
+        const tileRes = await window.storage.get(TILE_PREFIX + entry.id, false);
+        if(tileRes && tileRes.value){
+          const parsed = JSON.parse(tileRes.value);
+          loaded.push({ id: entry.id, dataUrl: parsed.dataUrl, isAnchor: entry.isAnchor });
+        }
+      }catch(e){ /* skip missing tile */ }
+    }
+    tiles = loaded;
+  }catch(e){ /* no saved order yet */ }
+}
+
+document.getElementById('addBtn').onclick = ()=> fileInput.click();
+document.getElementById('anchorBtn').onclick = ()=>{
+  fileInput.dataset.anchor = "1";
+  fileInput.click();
+};
+document.getElementById('clearBtn').onclick = async ()=>{
+  const ids = tiles.map(t=>t.id);
+  tiles = [];
+  selectedId = null;
+  renderGrid();
+  for(const id of ids){ await deleteTileStorage(id); }
+  await saveOrder();
+};
+
+fileInput.onchange = async (e)=>{
+  const isAnchor = fileInput.dataset.anchor === "1";
+  delete fileInput.dataset.anchor;
+  const files = Array.from(e.target.files);
+  fileInput.value = '';
+  if(files.length === 0) return;
+
+  for(const file of files){
+    try{
+      const dataUrl = await fileToCompressedDataUrl(file);
+      const tile = { id: 'p'+Math.random().toString(36).slice(2,9), dataUrl, isAnchor: isAnchor };
+      if(isAnchor){ tiles.unshift(tile); } else { tiles.push(tile); }
+      await saveTile(tile);
+    }catch(err){ /* skip file that failed to process */ }
+  }
+  await saveOrder();
+  renderGrid();
+};
+
+function renderGrid(){
+  gridEl.innerHTML = '';
+
+  if(tiles.length === 0){
+    gridEl.innerHTML = `<div class="empty-state" style="grid-column: span 3;">
+      <div class="big">🖼️</div>
+      Add a few draft photos to see<br>how they'll sit together in your grid.
+    </div>`;
+    swapHint.classList.remove('show');
+    return;
+  }
+
+  tiles.forEach((tile, i)=>{
+    const div = document.createElement('div');
+    div.className = 'tile' + (tile.id === selectedId ? ' selected' : '') + (tile.isAnchor ? ' anchor' : '');
+    div.dataset.id = tile.id;
+    div.innerHTML = `
+      <img src="${tile.dataUrl}" alt="draft post ${i+1}">
+      <div class="num">${i+1}</div>
+      <div class="del" data-del="${tile.id}">✕</div>
+    `;
+    gridEl.appendChild(div);
+  });
+
+  attachGridEvents();
+}
+
+function attachGridEvents(){
+  document.querySelectorAll('.tile').forEach(el=>{
+    el.onclick = (e)=>{
+      if(e.target.closest('.del')) return;
+      const id = el.dataset.id;
+      handleTileTap(id);
+    };
+  });
+  document.querySelectorAll('.del').forEach(el=>{
+    el.onclick = async (e)=>{
+      e.stopPropagation();
+      const id = el.dataset.del;
+      tiles = tiles.filter(t=>t.id!==id);
+      if(selectedId === id) selectedId = null;
+      renderGrid();
+      await deleteTileStorage(id);
+      await saveOrder();
+    };
+  });
+}
+
+async function handleTileTap(id){
+  if(selectedId === null){
+    selectedId = id;
+    swapHint.classList.add('show');
+  } else if(selectedId === id){
+    selectedId = null;
+    swapHint.classList.remove('show');
+  } else {
+    const iA = tiles.findIndex(t=>t.id===selectedId);
+    const iB = tiles.findIndex(t=>t.id===id);
+    [tiles[iA], tiles[iB]] = [tiles[iB], tiles[iA]];
+    selectedId = null;
+    swapHint.classList.remove('show');
+    await saveOrder();
+  }
+  renderGrid();
+}
+
+/* ============ INIT ============ */
+(async function init(){
+  gridEl.innerHTML = '<div class="empty-state" style="grid-column: span 3;">Loading…</div>';
+
+  await loadCalState();
+  renderCal();
+  const todayEl = document.getElementById('ticket-' + getTodayId());
+  if(todayEl){ todayEl.scrollIntoView({ behavior:'smooth', block:'center' }); }
+
+  await loadFromStorage();
+  renderGrid();
+})();
+</script>
+</body>
+</html>
