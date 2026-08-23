@@ -937,14 +937,16 @@ fileInput.onchange = async (e)=>{
   fileInput.value = '';
   if(files.length === 0) return;
 
+  const newTiles = [];
   for(const file of files){
     try{
       const dataUrl = await fileToCompressedDataUrl(file);
       const tile = { id: 'p'+Math.random().toString(36).slice(2,9), dataUrl, isAnchor: isAnchor };
-      if(isAnchor){ tiles.unshift(tile); } else { tiles.push(tile); }
+      newTiles.push(tile);
       await saveTile(tile);
     }catch(err){ /* skip file that failed to process */ }
   }
+  tiles = [...newTiles, ...tiles];
   await saveOrder();
   renderGrid();
 };
