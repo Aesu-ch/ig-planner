@@ -1089,8 +1089,6 @@ async function onDragEnd(e){
 
   await loadCalState();
   renderCal();
-  const todayEl = document.getElementById('ticket-' + getTodayId());
-  if(todayEl){ todayEl.scrollIntoView({ behavior:'smooth', block:'center' }); }
 
   await loadFromStorage();
   renderGrid();
