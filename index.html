@@ -465,6 +465,22 @@
     padding:1px 5px;
     border-radius:100px;
   }
+  .save-status{
+    position:absolute;
+    bottom:4px;
+    right:4px;
+    width:16px; height:16px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:10px;
+    font-weight:700;
+    color:#fff;
+    z-index:2;
+  }
+  .save-status.saved{ background:rgba(44,122,123,0.85); }
+  .save-status.not-saved{ background:rgba(216,84,58,0.9); }
   .tile.anchor::before{
     content:"CURRENT";
     position:absolute;
@@ -846,7 +862,7 @@ const gridEl = document.getElementById('grid');
 const fileInput = document.getElementById('fileInput');
 const swapHint = document.getElementById('swapHint');
 
-function fileToCompressedDataUrl(file, maxDim = 900, quality = 0.75){
+function fileToCompressedDataUrl(file, maxDim = 800, quality = 0.7){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onload = (ev)=>{
@@ -881,11 +897,12 @@ async function saveOrder(){
 }
 
 async function saveTile(tile){
-  if(!storageAvailable) return;
+  if(!storageAvailable) return false;
   try{
     const res = await window.storage.set(TILE_PREFIX + tile.id, JSON.stringify({dataUrl: tile.dataUrl}), false);
-    if(!res){ storageAvailable = false; showStorageWarning("This photo was too large to save — it'll stay for this session only."); }
-  }catch(e){ storageAvailable = false; showStorageWarning("This photo was too large to save — it'll stay for this session only."); }
+    if(!res){ storageAvailable = false; showStorageWarning("Photos aren't saving right now — they'll stay visible for this session only."); return false; }
+    return true;
+  }catch(e){ storageAvailable = false; showStorageWarning("Photos aren't saving right now — they'll stay visible for this session only."); return false; }
 }
 
 async function deleteTileStorage(id){
@@ -941,9 +958,10 @@ fileInput.onchange = async (e)=>{
   for(const file of files){
     try{
       const dataUrl = await fileToCompressedDataUrl(file);
-      const tile = { id: 'p'+Math.random().toString(36).slice(2,9), dataUrl, isAnchor: isAnchor };
+      const tile = { id: 'p'+Math.random().toString(36).slice(2,9), dataUrl, isAnchor: isAnchor, saved: true };
       newTiles.push(tile);
-      await saveTile(tile);
+      const ok = await saveTile(tile);
+      tile.saved = ok;
     }catch(err){ /* skip file that failed to process */ }
   }
   tiles = [...newTiles, ...tiles];
@@ -967,9 +985,13 @@ function renderGrid(){
     const div = document.createElement('div');
     div.className = 'tile' + (tile.id === selectedId ? ' selected' : '') + (tile.isAnchor ? ' anchor' : '');
     div.dataset.id = tile.id;
+    const statusDot = tile.saved === false
+      ? '<div class="save-status not-saved" title="Not saved — session only">!</div>'
+      : '<div class="save-status saved" title="Saved">✓</div>';
     div.innerHTML = `
       <img src="${tile.dataUrl}" alt="draft post ${i+1}">
       <div class="num">${i+1}</div>
+      ${statusDot}
       <div class="del" data-del="${tile.id}">✕</div>
     `;
     gridEl.appendChild(div);
