@@ -437,13 +437,14 @@
   }
   .tile{
     position:relative;
-    aspect-ratio: 1/1;
+    aspect-ratio: 3/4;
     background:#F6F3EA;
     overflow:hidden;
-    cursor:pointer;
+    cursor:grab;
+    touch-action:none;
   }
-  .tile img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .tile.selected{ outline: 3px solid var(--teal); outline-offset:-3px; }
+  .tile.dragging{ opacity:.25; }
+  .tile img{ width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
   .tile .del{
     position:absolute;
     top:4px; right:4px;
@@ -465,22 +466,17 @@
     padding:1px 5px;
     border-radius:100px;
   }
-  .save-status{
-    position:absolute;
-    bottom:4px;
-    right:4px;
-    width:16px; height:16px;
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:10px;
-    font-weight:700;
-    color:#fff;
-    z-index:2;
+  .drag-ghost{
+    position:fixed;
+    z-index:1000;
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow: 0 14px 28px rgba(22,33,62,0.4);
+    transform: scale(1.06) rotate(-1.5deg);
+    opacity:.96;
+    pointer-events:none;
   }
-  .save-status.saved{ background:rgba(44,122,123,0.85); }
-  .save-status.not-saved{ background:rgba(216,84,58,0.9); }
+  .drag-ghost img{ width:100%; height:100%; object-fit:cover; display:block; }
   .tile.anchor::before{
     content:"CURRENT";
     position:absolute;
@@ -552,7 +548,7 @@
   <section class="tab-panel grid-wrap" id="tab-grid">
     <p class="eyebrow">Feed Grid</p>
     <h1>Your grid</h1>
-    <p class="sub">Add, remove, and reorder your posts. Tap two tiles to swap their places.</p>
+    <p class="sub">Add, remove, and drag to reorder your posts.</p>
 
     <div class="toolbar">
       <button class="btn-primary" id="addBtn">+ Add photos</button>
@@ -560,8 +556,6 @@
       <button class="btn-ghost" id="clearBtn">Clear</button>
     </div>
     <input type="file" id="fileInput" accept="image/*" multiple>
-
-    <div class="hint" id="swapHint">Tile selected — tap another tile to swap places, or tap it again to deselect.</div>
 
     <div class="grid-card">
       <div class="grid" id="grid"></div>
@@ -852,15 +846,20 @@ document.getElementById('resetWeekBtn').onclick = async ()=>{
 };
 
 /* ============ GRID LOGIC ============ */
-let tiles = []; // {id, dataUrl, isAnchor}
-let selectedId = null;
+const SUPABASE_URL = 'https://gfpffprwjxkkfxxelgiw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmcGZmcHJ3anhra2Z4eGVsZ2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4MTY5MjgsImV4cCI6MjEwMTM5MjkyOH0.aQs5eviCso7Plm_lmHX1dXFp5-IE59M2NrwPHdFBZu4';
+const SB_HEADERS = {
+  'apikey': SUPABASE_ANON_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+  'Content-Type': 'application/json'
+};
+const SB_TABLE = `${SUPABASE_URL}/rest/v1/ig_grid_photos`;
 
-const ORDER_KEY = 'grid-order-v1';
-const TILE_PREFIX = 'grid-tile-v1:';
+let tiles = []; // {id, dataUrl, isAnchor}
+let gridStorageAvailable = true;
 
 const gridEl = document.getElementById('grid');
 const fileInput = document.getElementById('fileInput');
-const swapHint = document.getElementById('swapHint');
 
 function fileToCompressedDataUrl(file, maxDim = 800, quality = 0.7){
   return new Promise((resolve, reject)=>{
@@ -887,50 +886,51 @@ function fileToCompressedDataUrl(file, maxDim = 800, quality = 0.7){
   });
 }
 
-async function saveOrder(){
-  if(!storageAvailable) return;
+async function loadFromStorage(){
   try{
-    const order = tiles.map(t=>({id:t.id, isAnchor: !!t.isAnchor}));
-    const res = await window.storage.set(ORDER_KEY, JSON.stringify(order), false);
-    if(!res){ storageAvailable = false; showStorageWarning("Photos won't be saved between visits in this preview — everything still works this session."); }
-  }catch(e){ storageAvailable = false; showStorageWarning("Photos won't be saved between visits in this preview — everything still works this session."); }
+    const res = await fetch(`${SB_TABLE}?select=*&order=position.asc`, { headers: SB_HEADERS });
+    if(!res.ok) throw new Error('load failed');
+    const rows = await res.json();
+    tiles = rows.map(r => ({ id: r.id, dataUrl: r.image_data, isAnchor: r.is_anchor }));
+  }catch(e){
+    gridStorageAvailable = false;
+    showStorageWarning("Couldn't reach your saved grid — check your connection and reload.");
+  }
 }
 
-async function saveTile(tile){
-  if(!storageAvailable) return false;
+async function insertTile(tile, position){
   try{
-    const res = await window.storage.set(TILE_PREFIX + tile.id, JSON.stringify({dataUrl: tile.dataUrl}), false);
-    if(!res){ storageAvailable = false; showStorageWarning("Photos aren't saving right now — they'll stay visible for this session only."); return false; }
+    const res = await fetch(SB_TABLE, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, 'Prefer': 'return=minimum' },
+      body: JSON.stringify({ id: tile.id, image_data: tile.dataUrl, position, is_anchor: !!tile.isAnchor })
+    });
+    if(!res.ok) throw new Error('insert failed');
     return true;
-  }catch(e){ storageAvailable = false; showStorageWarning("Photos aren't saving right now — they'll stay visible for this session only."); return false; }
+  }catch(e){
+    showStorageWarning("A photo couldn't be saved — check your connection.");
+    return false;
+  }
 }
 
 async function deleteTileStorage(id){
-  if(!storageAvailable) return;
-  try{ await window.storage.delete(TILE_PREFIX + id, false); }catch(e){ /* ignore */ }
+  try{
+    await fetch(`${SB_TABLE}?id=eq.${id}`, { method:'DELETE', headers: SB_HEADERS });
+  }catch(e){ /* ignore */ }
 }
 
-async function loadFromStorage(){
-  if(!window.storage || typeof window.storage.get !== 'function'){
-    storageAvailable = false;
-    return;
-  }
+async function savePositions(){
   try{
-    const orderRes = await window.storage.get(ORDER_KEY, false);
-    if(!orderRes || !orderRes.value) return;
-    const order = JSON.parse(orderRes.value);
-    const loaded = [];
-    for(const entry of order){
-      try{
-        const tileRes = await window.storage.get(TILE_PREFIX + entry.id, false);
-        if(tileRes && tileRes.value){
-          const parsed = JSON.parse(tileRes.value);
-          loaded.push({ id: entry.id, dataUrl: parsed.dataUrl, isAnchor: entry.isAnchor });
-        }
-      }catch(e){ /* skip missing tile */ }
-    }
-    tiles = loaded;
-  }catch(e){ /* no saved order yet */ }
+    await Promise.all(tiles.map((t,i)=>
+      fetch(`${SB_TABLE}?id=eq.${t.id}`, {
+        method:'PATCH',
+        headers: SB_HEADERS,
+        body: JSON.stringify({ position: i })
+      })
+    ));
+  }catch(e){
+    showStorageWarning("Couldn't save the new order — check your connection.");
+  }
 }
 
 document.getElementById('addBtn').onclick = ()=> fileInput.click();
@@ -941,10 +941,8 @@ document.getElementById('anchorBtn').onclick = ()=>{
 document.getElementById('clearBtn').onclick = async ()=>{
   const ids = tiles.map(t=>t.id);
   tiles = [];
-  selectedId = null;
   renderGrid();
-  for(const id of ids){ await deleteTileStorage(id); }
-  await saveOrder();
+  await Promise.all(ids.map(id=>deleteTileStorage(id)));
 };
 
 fileInput.onchange = async (e)=>{
@@ -958,15 +956,14 @@ fileInput.onchange = async (e)=>{
   for(const file of files){
     try{
       const dataUrl = await fileToCompressedDataUrl(file);
-      const tile = { id: 'p'+Math.random().toString(36).slice(2,9), dataUrl, isAnchor: isAnchor, saved: true };
+      const tile = { id: 'p'+Math.random().toString(36).slice(2,9), dataUrl, isAnchor: isAnchor };
       newTiles.push(tile);
-      const ok = await saveTile(tile);
-      tile.saved = ok;
+      await insertTile(tile, 0);
     }catch(err){ /* skip file that failed to process */ }
   }
   tiles = [...newTiles, ...tiles];
-  await saveOrder();
   renderGrid();
+  await savePositions();
 };
 
 function renderGrid(){
@@ -977,21 +974,16 @@ function renderGrid(){
       <div class="big">🖼️</div>
       Add a few draft photos to see<br>how they'll sit together in your grid.
     </div>`;
-    swapHint.classList.remove('show');
     return;
   }
 
   tiles.forEach((tile, i)=>{
     const div = document.createElement('div');
-    div.className = 'tile' + (tile.id === selectedId ? ' selected' : '') + (tile.isAnchor ? ' anchor' : '');
+    div.className = 'tile' + (tile.id === draggingId ? ' dragging' : '') + (tile.isAnchor ? ' anchor' : '');
     div.dataset.id = tile.id;
-    const statusDot = tile.saved === false
-      ? '<div class="save-status not-saved" title="Not saved — session only">!</div>'
-      : '<div class="save-status saved" title="Saved">✓</div>';
     div.innerHTML = `
-      <img src="${tile.dataUrl}" alt="draft post ${i+1}">
+      <img src="${tile.dataUrl}" alt="draft post ${i+1}" draggable="false">
       <div class="num">${i+1}</div>
-      ${statusDot}
       <div class="del" data-del="${tile.id}">✕</div>
     `;
     gridEl.appendChild(div);
@@ -1002,41 +994,93 @@ function renderGrid(){
 
 function attachGridEvents(){
   document.querySelectorAll('.tile').forEach(el=>{
-    el.onclick = (e)=>{
+    el.addEventListener('pointerdown', (e)=>{
       if(e.target.closest('.del')) return;
-      const id = el.dataset.id;
-      handleTileTap(id);
-    };
+      startDrag(e, el.dataset.id);
+    });
   });
   document.querySelectorAll('.del').forEach(el=>{
     el.onclick = async (e)=>{
       e.stopPropagation();
       const id = el.dataset.del;
       tiles = tiles.filter(t=>t.id!==id);
-      if(selectedId === id) selectedId = null;
       renderGrid();
       await deleteTileStorage(id);
-      await saveOrder();
+      await savePositions();
     };
   });
 }
 
-async function handleTileTap(id){
-  if(selectedId === null){
-    selectedId = id;
-    swapHint.classList.add('show');
-  } else if(selectedId === id){
-    selectedId = null;
-    swapHint.classList.remove('show');
-  } else {
-    const iA = tiles.findIndex(t=>t.id===selectedId);
-    const iB = tiles.findIndex(t=>t.id===id);
-    [tiles[iA], tiles[iB]] = [tiles[iB], tiles[iA]];
-    selectedId = null;
-    swapHint.classList.remove('show');
-    await saveOrder();
-  }
+/* ---- drag to reorder (pointer events; works for mouse + touch) ---- */
+let draggingId = null;
+let dragGhost = null;
+let dragOffsetX = 0, dragOffsetY = 0;
+
+function startDrag(e, id){
+  e.preventDefault();
+  const tile = tiles.find(t=>t.id===id);
+  if(!tile) return;
+  const tileEl = document.querySelector(`.tile[data-id="${id}"]`);
+  const rect = tileEl.getBoundingClientRect();
+
+  draggingId = id;
+  dragOffsetX = e.clientX - rect.left;
+  dragOffsetY = e.clientY - rect.top;
+
+  dragGhost = document.createElement('div');
+  dragGhost.className = 'drag-ghost';
+  dragGhost.style.width = rect.width + 'px';
+  dragGhost.style.height = rect.height + 'px';
+  dragGhost.style.left = rect.left + 'px';
+  dragGhost.style.top = rect.top + 'px';
+  dragGhost.innerHTML = `<img src="${tile.dataUrl}" draggable="false">`;
+  document.body.appendChild(dragGhost);
+
+  try{ dragGhost.setPointerCapture(e.pointerId); }catch(err){}
+
+  dragGhost.addEventListener('pointermove', onDragMove);
+  dragGhost.addEventListener('pointerup', onDragEnd);
+  dragGhost.addEventListener('pointercancel', onDragEnd);
+
   renderGrid();
+}
+
+function onDragMove(e){
+  if(!dragGhost) return;
+  dragGhost.style.left = (e.clientX - dragOffsetX) + 'px';
+  dragGhost.style.top = (e.clientY - dragOffsetY) + 'px';
+
+  const prevPE = dragGhost.style.pointerEvents;
+  dragGhost.style.pointerEvents = 'none';
+  const hoveredEl = document.elementFromPoint(e.clientX, e.clientY);
+  dragGhost.style.pointerEvents = prevPE;
+
+  const hoveredTile = hoveredEl && hoveredEl.closest('.tile');
+  if(hoveredTile){
+    const hoveredId = hoveredTile.dataset.id;
+    if(hoveredId && hoveredId !== draggingId){
+      const iA = tiles.findIndex(t=>t.id===draggingId);
+      const iB = tiles.findIndex(t=>t.id===hoveredId);
+      if(iA > -1 && iB > -1 && iA !== iB){
+        const [moved] = tiles.splice(iA, 1);
+        tiles.splice(iB, 0, moved);
+        renderGrid();
+      }
+    }
+  }
+}
+
+async function onDragEnd(e){
+  if(!dragGhost) return;
+  try{ dragGhost.releasePointerCapture(e.pointerId); }catch(err){}
+  dragGhost.removeEventListener('pointermove', onDragMove);
+  dragGhost.removeEventListener('pointerup', onDragEnd);
+  dragGhost.removeEventListener('pointercancel', onDragEnd);
+  dragGhost.remove();
+  dragGhost = null;
+  draggingId = null;
+  renderGrid();
+  await savePositions();
 }
 
 /* ============ INIT ============ */
